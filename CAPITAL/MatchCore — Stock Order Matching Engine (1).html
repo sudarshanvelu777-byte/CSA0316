@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MatchCore — Stock Order Matching Engine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0d10; --panel:#11161b; --panel-2:#161c22; --line:#232b32;
+  --text:#e7edf1; --muted:#8ea0ab; --bid:#2bbf7e; --ask:#e2524f; --amber:#f0b429;
+  --font-head:'Space Grotesk',sans-serif; --font-mono:'JetBrains Mono',monospace;
+  color-scheme: dark;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px); height:100%;}
+*{box-sizing:border-box;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-head);line-height:1.5;-webkit-font-smoothing:antialiased;}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg);}
+a{color:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px;}
+header.nav{display:flex;align-items:center;justify-content:space-between;padding:22px 28px;border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);background:rgba(10,13,16,.9);backdrop-filter:blur(8px);z-index:5;}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:.2px;font-size:18px;}
+.brand .dot{width:9px;height:9px;border-radius:50%;background:var(--bid);box-shadow:0 0 0 3px rgba(43,191,126,.18);}
+.nav a{color:var(--muted);text-decoration:none;font-size:14px;margin-left:26px;}
+.nav a:hover{color:var(--text)}
+
+.hero{padding:72px 28px 56px;}
+.hero-grid{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:1.15fr 1fr;gap:56px;align-items:center;}
+.kicker{font-family:var(--font-mono);color:var(--amber);font-size:13px;margin:0 0 16px;}
+.hero h1{font-size:50px;line-height:1.07;margin:0 0 20px;font-weight:700;letter-spacing:-1px;}
+.hero p.lede{color:var(--muted);font-size:17px;max-width:46ch;margin:0 0 30px;}
+.cta-row{display:flex;gap:14px;flex-wrap:wrap;}
+.btn{font-family:var(--font-head);font-weight:600;font-size:14.5px;padding:13px 22px;border-radius:7px;border:1px solid transparent;cursor:pointer;}
+.btn-primary{background:var(--bid);color:#06150e;}
+.btn-ghost{background:transparent;color:var(--text);border-color:var(--line);}
+
+/* live book widget */
+.book{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+.book-head{display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);font-family:var(--font-mono);font-size:12.5px;color:var(--muted);}
+.live{display:flex;align-items:center;gap:6px;color:var(--bid);}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--bid);animation:pulse 1.4s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.book-cols{display:grid;grid-template-columns:1fr 1fr;font-family:var(--font-mono);font-size:13px;}
+.col-head{padding:8px 14px;color:var(--muted);font-size:11px;display:flex;justify-content:space-between;border-bottom:1px solid var(--line);}
+.rows{padding:6px 0;min-height:230px;}
+.row{display:flex;justify-content:space-between;padding:4px 14px;position:relative;}
+.row .fill{position:absolute;top:0;bottom:0;right:0;opacity:.14;}
+.bidcol .fill{background:var(--bid);} .askcol .fill{background:var(--ask);}
+.bidcol .px{color:var(--bid);} .askcol .px{color:var(--ask);}
+.tape{border-top:1px solid var(--line);padding:10px 14px;font-family:var(--font-mono);font-size:12px;color:var(--muted);display:flex;justify-content:space-between;}
+.tape b{color:var(--amber);font-weight:500;}
+
+section{padding:64px 28px;border-top:1px solid var(--line);}
+.eyebrow{color:var(--amber);font-family:var(--font-mono);font-size:13px;margin:0 0 10px;}
+h2{font-size:30px;margin:0 0 14px;letter-spacing:-.4px;}
+.section-lede{color:var(--muted);max-width:62ch;margin:0 0 40px;}
+
+/* comparison */
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:18px;max-width:1180px;margin:0 auto;}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:26px;}
+.panel h3{margin:0 0 16px;font-size:16px;}
+.panel.old h3{color:var(--ask)} .panel.new h3{color:var(--bid)}
+.panel ul{margin:0;padding:0;list-style:none;}
+.panel li{padding:10px 0;border-bottom:1px solid var(--line);color:var(--muted);font-size:14.5px;}
+.panel li:last-child{border:none}
+.panel.new li{color:var(--text)}
+
+/* architecture */
+.arch-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+.arch-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px;}
+.arch-card .tag{font-family:var(--font-mono);font-size:11px;color:var(--amber);margin-bottom:10px;display:block;}
+.arch-card h4{margin:0 0 8px;font-size:16px;}
+.arch-card p{margin:0;color:var(--muted);font-size:14px;}
+
+.flow{margin-top:36px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:26px;font-family:var(--font-mono);font-size:13.5px;color:var(--muted);overflow-x:auto;}
+.flow .step{color:var(--text);}
+.flow .arrow{color:var(--amber);padding:0 10px;}
+
+/* stack */
+.stack-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+.stack-card{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:20px;text-align:left;}
+.stack-card .ico{font-family:var(--font-mono);color:var(--bid);font-size:12px;}
+.stack-card h4{margin:10px 0 6px;font-size:15px;}
+.stack-card p{margin:0;color:var(--muted);font-size:13px;}
+
+footer{padding:36px 28px;text-align:center;color:var(--muted);font-size:13px;border-top:1px solid var(--line);}
+
+@media(max-width:860px){
+  .hero-grid{grid-template-columns:1fr;}
+  .hero h1{font-size:36px;}
+  .compare{grid-template-columns:1fr;}
+  .arch-grid{grid-template-columns:1fr 1fr;}
+  .stack-grid{grid-template-columns:1fr 1fr;}
+}
+@media(max-width:520px){ .arch-grid,.stack-grid{grid-template-columns:1fr;} }
+@media (prefers-reduced-motion: reduce){ .live i{animation:none} }
+
+.trade-grid{display:grid;grid-template-columns:320px 1fr;gap:22px;align-items:start;}
+.order-form{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:7px;}
+.field input{width:100%;background:var(--panel-2);border:1px solid var(--line);color:var(--text);border-radius:6px;padding:10px 12px;font-family:var(--font-mono);font-size:14px;}
+.field input:focus{outline:2px solid var(--amber);outline-offset:1px;}
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;}
+.seg-btn{flex:1;background:var(--panel-2);color:var(--muted);border:none;padding:9px 0;font-family:var(--font-head);font-size:13.5px;font-weight:600;cursor:pointer;}
+.seg-btn.active.buy{background:var(--bid);color:#06150e;}
+.seg-btn.active.sell{background:var(--ask);color:#1a0706;}
+.seg-btn.active:not(.buy):not(.sell){background:var(--amber);color:#1a1300;}
+.formnote{font-size:12px;color:var(--muted);margin:12px 0 0;}
+.book-panel{display:flex;flex-direction:column;gap:16px;}
+.marketdata{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.mdstat{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;}
+.mdstat span{display:block;color:var(--muted);font-size:11.5px;margin-bottom:5px;}
+.mdstat b{font-family:var(--font-mono);font-size:16px;font-weight:500;}
+.logpanel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px;max-height:220px;overflow-y:auto;font-family:var(--font-mono);font-size:12.5px;}
+.logrow{padding:5px 0;border-bottom:1px solid var(--line);color:var(--muted);}
+.logrow:last-child{border:none}
+.logrow .t{color:#5a6a74;margin-right:8px;}
+.logrow.buy{color:var(--bid);} .logrow.sell{color:var(--ask);} .logrow.trade{color:var(--amber);}
+@media(max-width:860px){ .trade-grid{grid-template-columns:1fr;} .marketdata{grid-template-columns:1fr 1fr;} }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="brand"><span class="dot"></span>MatchCore</div>
+  <nav>
+    <a href="#problem">Why it's different</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#stack">Stack</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <div class="hero-grid" style="grid-template-columns:1fr;">
+    <div>
+      <p class="kicker">// price-time priority matching engine</p>
+      <h1>A matching engine built the way exchanges actually need one.</h1>
+      <p class="lede">Bid and ask heaps, FIFO price levels, and an O(1) order index — written in C, served through Streamlit, and logged to SQLite in WAL mode so nothing is lost when the book gets busy.</p>
+      <div class="cta-row">
+        <a href="#trade" class="btn btn-primary">Place a live order</a>
+        <a href="#architecture" class="btn btn-ghost">Read the architecture</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="trade">
+  <div class="wrap">
+    <p class="eyebrow">try it</p>
+    <h2>Submit an order, watch it hit the book</h2>
+    <p class="section-lede">Each submission carries an order type, price, quantity and timestamp — exactly what the C core consumes. Limit orders rest and queue by arrival time; market orders sweep the opposite book immediately.</p>
+
+    <div class="trade-grid">
+      <form class="order-form" id="orderForm">
+        <div class="field">
+          <label>Side</label>
+          <div class="seg" id="sideSeg">
+            <button type="button" class="seg-btn active buy" data-side="buy">Buy</button>
+            <button type="button" class="seg-btn sell" data-side="sell">Sell</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>Order type</label>
+          <div class="seg" id="typeSeg">
+            <button type="button" class="seg-btn active" data-type="limit">Limit</button>
+            <button type="button" class="seg-btn" data-type="market">Market</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="priceInput">Price (integer)</label>
+          <input id="priceInput" type="number" step="1" min="1" placeholder="e.g. 190" required>
+        </div>
+        <div class="field">
+          <label for="qtyInput">Quantity</label>
+          <input id="qtyInput" type="number" step="1" min="1" placeholder="e.g. 100" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;margin-top:6px;">Place order</button>
+        <p class="formnote" id="formNote">Timestamp is stamped automatically at submission.</p>
+      </form>
+
+      <div class="book-panel">
+        <div class="marketdata">
+          <div class="mdstat"><span>Best bid</span><b id="mdBid">—</b></div>
+          <div class="mdstat"><span>Best ask</span><b id="mdAsk">—</b></div>
+          <div class="mdstat"><span>Spread</span><b id="mdSpread">—</b></div>
+          <div class="mdstat"><span>Last trade</span><b id="mdLast">—</b></div>
+        </div>
+        <div class="book">
+          <div class="book-head"><span>AAPL — order book</span><span class="live"><i></i>LIVE</span></div>
+          <div class="book-cols">
+            <div class="col-head"><span>BID (price · qty · # orders)</span></div>
+            <div class="col-head"><span>ASK (price · qty · # orders)</span></div>
+          </div>
+          <div class="book-cols rows">
+            <div class="bidcol" id="bidRows"></div>
+            <div class="askcol" id="askRows"></div>
+          </div>
+        </div>
+        <div class="logpanel" id="logPanel"></div>
+      </div>
+    </div>
+  </div>
+
+<section id="problem">
+  <div class="wrap">
+    <p class="eyebrow">the gap this closes</p>
+    <h2>Most student matching engines fake the hard part</h2>
+    <p class="section-lede">Linear scans dressed up as "order books," queues that lose time priority, and no durable record of what happened — this design replaces all three with the data structures a real venue would use.</p>
+    <div class="compare">
+      <div class="panel old">
+        <h3>Typical prior models</h3>
+        <ul>
+          <li>Scans a flat list of orders for every match — O(n) per trade</li>
+          <li>Price levels stored unordered, so time priority breaks under load</li>
+          <li>Cancel/modify requires searching the whole book by ID</li>
+          <li>No persistent record — history disappears when the process exits</li>
+          <li>In-memory only: a crash loses the entire book instantly</li>
+        </ul>
+      </div>
+      <div class="panel new">
+        <h3>This engine</h3>
+        <ul>
+          <li>Max-heap bids / min-heap asks — best price is always O(1) to read</li>
+          <li>Per-price doubly linked FIFO queues preserve strict arrival order</li>
+          <li>Hash-indexed order IDs → direct pointer, O(1) cancel/modify</li>
+          <li>Every accept, cancel and trade appended to an event log</li>
+          <li>SQLite in WAL mode durably persists state without blocking reads</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="architecture">
+  <div class="wrap">
+    <p class="eyebrow">core implementation</p>
+    <h2>Five structures, one matching loop</h2>
+    <p class="section-lede">Everything below is implemented in pure C and sits behind the Streamlit interface as the engine's actual decision logic.</p>
+    <div class="arch-grid">
+      <div class="arch-card"><span class="tag">01 · heaps</span><h4>Bid &amp; ask priority queues</h4><p>A max-heap keeps the highest bid at the root; a min-heap keeps the lowest ask at the root — both rebalance in O(log n) on insert or remove.</p></div>
+      <div class="arch-card"><span class="tag">02 · linked lists</span><h4>Per-price FIFO queues</h4><p>Every price level holds its own doubly linked list, so two orders at the same price always fill in the order they arrived.</p></div>
+      <div class="arch-card"><span class="tag">03 · matching loop</span><h4>Price-time crossing</h4><p>While best bid ≥ best ask, the loop pulls the front order from each queue, fills the smaller quantity, and emits a trade.</p></div>
+      <div class="arch-card"><span class="tag">04 · hash index</span><h4>Order ID lookup</h4><p>A hash table maps every order ID straight to its linked-list node, so cancels and modifications never scan the book.</p></div>
+      <div class="arch-card"><span class="tag">05 · event log</span><h4>Durable audit trail</h4><p>Accepts, cancels and trades are appended to a log and mirrored into SQLite (WAL mode) for replay and verification.</p></div>
+      <div class="arch-card"><span class="tag">06 · interface</span><h4>Streamlit control room</h4><p>A Python/Streamlit layer submits orders to the C core and renders book depth, the trade tape and live performance counters.</p></div>
+    </div>
+
+    <div class="flow">
+      <span class="step">submit_order()</span><span class="arrow">→</span><span class="step">push to heap + FIFO queue</span><span class="arrow">→</span><span class="step">while best_bid ≥ best_ask: match &amp; reduce qty</span><span class="arrow">→</span><span class="step">emit trade</span><span class="arrow">→</span><span class="step">append to event log / SQLite WAL</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <p class="eyebrow">order handling</p>
+    <h2>Correct behaviour, not just correct output</h2>
+    <p class="section-lede">Limit orders, market orders, cancellations and partial fills are each handled as distinct code paths against the same book, using C structs and dynamic memory rather than fixed-size arrays.</p>
+    <div class="arch-grid">
+      <div class="arch-card"><span class="tag">limit</span><h4>Rests until matched</h4><p>Posts to the heap and FIFO queue at its price if it can't fill immediately.</p></div>
+      <div class="arch-card"><span class="tag">market</span><h4>Fills against best price</h4><p>Walks the opposite book until filled or the book is exhausted.</p></div>
+      <div class="arch-card"><span class="tag">cancel / modify</span><h4>O(1) via the index</h4><p>The hash index jumps straight to the node — no scan of the book.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="stack">
+  <div class="wrap">
+    <p class="eyebrow">how it's built</p>
+    <h2>Stack</h2>
+    <div class="stack-grid">
+      <div class="stack-card"><span class="ico">01</span><h4>C core</h4><p>Heaps, linked lists, hash index, matching loop.</p></div>
+      <div class="stack-card"><span class="ico">02</span><h4>HTML frontend</h4><p>Book depth, trade tape and order entry.</p></div>
+      <div class="stack-card"><span class="ico">03</span><h4>Streamlit</h4><p>Python control layer calling into the C engine.</p></div>
+      <div class="stack-card"><span class="ico">04</span><h4>SQLite (WAL)</h4><p>Durable, concurrent-read order and trade history.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>MatchCore — a price-time priority matching engine in C.</footer>
+
+<script>
+(function(){
+  var bids=[], asks=[], orderSeq=0, lastTradePx=null, lastTradeQty=null;
+  var bidsEl=document.getElementById('bidRows'), asksEl=document.getElementById('askRows');
+  var logEl=document.getElementById('logPanel');
+  var mdBid=document.getElementById('mdBid'), mdAsk=document.getElementById('mdAsk'), mdSpread=document.getElementById('mdSpread'), mdLast=document.getElementById('mdLast');
+  var side='buy', type='limit';
+
+  function ts(){ var d=new Date(); return d.toTimeString().slice(0,8); }
+  function log(msg, cls){
+    var row=document.createElement('div');
+    row.className='logrow'+(cls?(' '+cls):'');
+    row.innerHTML='<span class="t">'+ts()+'</span>'+msg;
+    logEl.insertBefore(row, logEl.firstChild);
+  }
+
+  function sortBook(){
+    bids.sort(function(a,b){ return b.price-a.price || a.time-b.time; });
+    asks.sort(function(a,b){ return a.price-b.price || a.time-b.time; });
+  }
+
+  function match(order){
+    var book = order.side==='buy' ? asks : bids;
+    while(order.qty>0 && book.length>0){
+      var top=book[0];
+      var crosses = order.type==='market' || (order.side==='buy' ? order.price>=top.price : order.price<=top.price);
+      if(!crosses) break;
+      var fill=Math.min(order.qty, top.qty);
+      order.qty-=fill; top.qty-=fill;
+      lastTradePx=top.price; lastTradeQty=fill;
+      log('Trade: '+fill+' @ '+top.price, 'trade');
+      if(top.qty<=0) book.shift();
+    }
+  }
+
+  function processOrder(order){
+    orderSeq++;
+    order.id=orderSeq; order.time=Date.now();
+    log('#'+order.id+' '+order.side.toUpperCase()+' '+order.type.toUpperCase()+' '+order.qty+(order.type==='limit'?(' @ '+order.price):'')+' accepted', order.side);
+    match(order);
+    if(order.qty>0 && order.type==='limit'){
+      (order.side==='buy'?bids:asks).push(order);
+      sortBook();
+    } else if(order.qty>0 && order.type==='market'){
+      log('#'+order.id+' remainder '+order.qty+' cancelled \u2014 no liquidity', order.side);
+    }
+  }
+
+  function aggregate(book){
+    var map={}, order=[];
+    book.forEach(function(o){
+      if(!map[o.price]){ map[o.price]={price:o.price,qty:0,count:0}; order.push(o.price); }
+      map[o.price].qty+=o.qty; map[o.price].count+=1;
+    });
+    return order.map(function(p){return map[p];}).slice(0,6);
+  }
+
+  function render(){
+    var bl=aggregate(bids), al=aggregate(asks);
+    var maxQty=Math.max(1, Math.max.apply(null, bl.concat(al).map(function(r){return r.qty;}).concat([1])));
+    bidsEl.innerHTML = bl.length ? bl.map(function(r){
+      return '<div class="row"><span class="fill" style="width:'+(r.qty/maxQty*100)+'%"></span><span class="px">'+r.price+'</span><span>'+r.qty+' \u00b7 '+r.count+'</span></div>';
+    }).join('') : '<div class="row" style="color:#5a6a74">no bids</div>';
+    asksEl.innerHTML = al.length ? al.map(function(r){
+      return '<div class="row"><span class="fill" style="width:'+(r.qty/maxQty*100)+'%"></span><span class="px">'+r.price+'</span><span>'+r.qty+' \u00b7 '+r.count+'</span></div>';
+    }).join('') : '<div class="row" style="color:#5a6a74">no asks</div>';
+
+    mdBid.textContent = bids.length ? bids[0].price : '\u2014';
+    mdAsk.textContent = asks.length ? asks[0].price : '\u2014';
+    mdSpread.textContent = (bids.length && asks.length) ? (asks[0].price-bids[0].price) : '\u2014';
+    mdLast.textContent = lastTradePx!==null ? (lastTradeQty+' @ '+lastTradePx) : '\u2014';
+  }
+
+  document.getElementById('sideSeg').addEventListener('click', function(e){
+    var b=e.target.closest('.seg-btn'); if(!b) return;
+    side=b.dataset.side;
+    this.querySelectorAll('.seg-btn').forEach(function(x){x.classList.remove('active');});
+    b.classList.add('active');
+  });
+  document.getElementById('typeSeg').addEventListener('click', function(e){
+    var b=e.target.closest('.seg-btn'); if(!b) return;
+    type=b.dataset.type;
+    this.querySelectorAll('.seg-btn').forEach(function(x){x.classList.remove('active');});
+    b.classList.add('active');
+    var p=document.getElementById('priceInput');
+    p.disabled = (type==='market');
+    p.required = (type==='limit');
+    p.placeholder = type==='market' ? 'matched at best price' : 'e.g. 190';
+    if(type==='market') p.value='';
+  });
+
+  document.getElementById('orderForm').addEventListener('submit', function(e){
+    e.preventDefault();
+    var qty=parseInt(document.getElementById('qtyInput').value,10);
+    var priceVal=document.getElementById('priceInput').value;
+    var price = type==='limit' ? parseInt(priceVal,10) : null;
+    if(!qty || qty<1 || (type==='limit' && (!price || price<1))) return;
+    processOrder({side:side, type:type, price:price, qty:qty});
+    render();
+    document.getElementById('qtyInput').value='';
+    if(type==='limit') document.getElementById('priceInput').value='';
+  });
+
+  // seed the book so it isn't empty on load
+  [['buy',188,400],['buy',187,650],['buy',186,300],['sell',190,500],['sell',191,420],['sell',192,300]].forEach(function(o){
+    processOrder({side:o[0], type:'limit', price:o[1], qty:o[2]});
+  });
+  render();
+})();
+</script>
+</body>
+</html>
